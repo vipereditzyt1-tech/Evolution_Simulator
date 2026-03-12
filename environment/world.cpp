@@ -37,7 +37,7 @@ std::size_t EnvironmentWorld::ChunkCoordHash::operator()(const ChunkCoord& coord
 EnvironmentWorld::EnvironmentWorld(const std::uint32_t seed) : seed_(seed) {}
 
 void EnvironmentWorld::tick(const std::uint64_t tick_index, const std::vector<Creature>& creatures,
-                            std::vector<InventoryItem>& recycled_materials) {
+                            std::vector<InventoryItem>& recycled_materials, ThreadPool* jobs) {
   creature_grid_.rebuild(creatures);
 
   std::unordered_set<ChunkCoord, ChunkCoordHash> active_chunks;
@@ -57,7 +57,35 @@ void EnvironmentWorld::tick(const std::uint64_t tick_index, const std::vector<Cr
     active_chunks.insert(ChunkCoord {0, 0, 0});
   }
 
-  for (const auto& coord : active_chunks) {
+  std::vector<ChunkCoord> ordered_chunks(active_chunks.begin(), active_chunks.end());
+  std::sort(ordered_chunks.begin(), ordered_chunks.end(), [](const ChunkCoord& a, const ChunkCoord& b) {
+    if (a.x != b.x) {
+      return a.x < b.x;
+    }
+    if (a.y != b.y) {
+      return a.y < b.y;
+    }
+    return a.z < b.z;
+  });
+
+  if (jobs != nullptr) {
+    std::vector<std::vector<InventoryItem>> local_recycled(ordered_chunks.size());
+    jobs->parallel_for(0, ordered_chunks.size(), [&](const std::size_t i) {
+      Chunk& chunk = ensure_chunk(ordered_chunks[i]);
+      apply_rainfall(chunk, tick_index);
+      apply_temperature(chunk, tick_index);
+      apply_pressure(chunk, tick_index);
+      apply_chemical_weathering(chunk, local_recycled[i]);
+      apply_geological_compression(chunk);
+      apply_resource_diffusion(chunk);
+    });
+    for (const auto& local : local_recycled) {
+      recycled_materials.insert(recycled_materials.end(), local.begin(), local.end());
+    }
+    return;
+  }
+
+  for (const auto& coord : ordered_chunks) {
     Chunk& chunk = ensure_chunk(coord);
     apply_rainfall(chunk, tick_index);
     apply_temperature(chunk, tick_index);
@@ -144,6 +172,102 @@ EnvironmentSensorSample EnvironmentWorld::query_environment(const SpatialPositio
 
 std::size_t EnvironmentWorld::loaded_chunk_count() const {
   return chunks_.size();
+}
+
+
+std::vector<CreatureId> EnvironmentWorld::query_neighbors(const SpatialPosition& world_position, const double radius) const {
+  const ChunkCoord center = to_chunk_coord(world_position);
+  const int chunk_radius = std::max(1, static_cast<int>(std::ceil(radius / static_cast<double>(kChunkSize))));
+  const double radius_sq = radius * radius;
+  std::vector<CreatureId> neighbors;
+
+  for (int dx = -chunk_radius; dx <= chunk_radius; ++dx) {
+    for (int dy = -chunk_radius; dy <= chunk_radius; ++dy) {
+      for (int dz = -chunk_radius; dz <= chunk_radius; ++dz) {
+        const ChunkCoord c {center.x + dx, center.y + dy, center.z + dz};
+        const auto bucket_it = creature_grid_.buckets.find(c);
+        if (bucket_it == creature_grid_.buckets.end()) {
+          continue;
+        }
+        for (const CreatureId id : bucket_it->second) {
+          const auto pos_it = creature_grid_.positions.find(id);
+          if (pos_it == creature_grid_.positions.end()) {
+            continue;
+          }
+          const auto& p = pos_it->second;
+          const double sx = p.x - world_position.x;
+          const double sy = p.y - world_position.y;
+          const double sz = p.z - world_position.z;
+          if ((sx * sx + sy * sy + sz * sz) <= radius_sq) {
+            neighbors.push_back(id);
+          }
+        }
+      }
+    }
+  }
+
+  std::sort(neighbors.begin(), neighbors.end());
+  neighbors.erase(std::unique(neighbors.begin(), neighbors.end()), neighbors.end());
+  return neighbors;
+}
+
+std::vector<std::pair<CreatureId, CreatureId>> EnvironmentWorld::broad_phase_pairs(const double radius) const {
+  std::vector<std::pair<CreatureId, CreatureId>> pairs;
+  const double radius_sq = radius * radius;
+
+  for (const auto& [coord, ids] : creature_grid_.buckets) {
+    for (std::size_t i = 0; i < ids.size(); ++i) {
+      for (std::size_t j = i + 1; j < ids.size(); ++j) {
+        const auto a_it = creature_grid_.positions.find(ids[i]);
+        const auto b_it = creature_grid_.positions.find(ids[j]);
+        if (a_it == creature_grid_.positions.end() || b_it == creature_grid_.positions.end()) {
+          continue;
+        }
+        const double dx = a_it->second.x - b_it->second.x;
+        const double dy = a_it->second.y - b_it->second.y;
+        const double dz = a_it->second.z - b_it->second.z;
+        if ((dx * dx + dy * dy + dz * dz) <= radius_sq) {
+          pairs.emplace_back(std::min(ids[i], ids[j]), std::max(ids[i], ids[j]));
+        }
+      }
+
+      for (int dx = -1; dx <= 1; ++dx) {
+        for (int dy = -1; dy <= 1; ++dy) {
+          for (int dz = -1; dz <= 1; ++dz) {
+            if (dx == 0 && dy == 0 && dz == 0) {
+              continue;
+            }
+            const ChunkCoord n {coord.x + dx, coord.y + dy, coord.z + dz};
+            if (n.x < coord.x || (n.x == coord.x && n.y < coord.y) ||
+                (n.x == coord.x && n.y == coord.y && n.z <= coord.z)) {
+              continue;
+            }
+            const auto n_it = creature_grid_.buckets.find(n);
+            if (n_it == creature_grid_.buckets.end()) {
+              continue;
+            }
+            for (const CreatureId other : n_it->second) {
+              const auto a_it = creature_grid_.positions.find(ids[i]);
+              const auto b_it = creature_grid_.positions.find(other);
+              if (a_it == creature_grid_.positions.end() || b_it == creature_grid_.positions.end()) {
+                continue;
+              }
+              const double ddx = a_it->second.x - b_it->second.x;
+              const double ddy = a_it->second.y - b_it->second.y;
+              const double ddz = a_it->second.z - b_it->second.z;
+              if ((ddx * ddx + ddy * ddy + ddz * ddz) <= radius_sq) {
+                pairs.emplace_back(std::min(ids[i], other), std::max(ids[i], other));
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  std::sort(pairs.begin(), pairs.end());
+  pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
+  return pairs;
 }
 
 EnvironmentWorld::ChunkCoord EnvironmentWorld::to_chunk_coord(const SpatialPosition& position) {
@@ -330,10 +454,13 @@ double EnvironmentWorld::seeded_noise(const int x, const int y, const int z, con
 
 void EnvironmentWorld::SpatialGrid::rebuild(const std::vector<Creature>& creatures) {
   buckets.clear();
+  positions.clear();
   buckets.reserve(creatures.size());
+  positions.reserve(creatures.size());
   for (const auto& creature : creatures) {
     const ChunkCoord coord = EnvironmentWorld::to_chunk_coord(creature.position);
     buckets[coord].push_back(creature.id);
+    positions[creature.id] = creature.position;
   }
 }
 

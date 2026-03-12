@@ -61,3 +61,42 @@ ctest --test-dir build --output-on-failure
 
 - `-DEVO_SIM_FETCH_DEPS=OFF` to disable FetchContent downloads.
 - `-DEVO_SIM_BUILD_TESTS=OFF` to skip test target generation.
+
+
+## Performance foundations
+
+The simulator uses three baseline performance mechanisms:
+
+- **Thread pool/job system:** world chunk updates and per-creature block updates run in parallel via `sim::ThreadPool`.
+- **Spatial partitioning:** environment chunks double as a broad-phase grid for neighbor and collision candidate queries.
+- **Fixed timestep + interpolation:** simulation ticks run at a fixed dt (`1/60s`) while render frames can run independently and consume interpolation alpha.
+
+### Profiling workflow
+
+1. Configure a release build with tests enabled:
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DEVO_SIM_BUILD_TESTS=ON
+cmake --build build -j
+```
+
+2. Run deterministic and performance suites:
+
+```bash
+ctest --test-dir build --output-on-failure -R "DeterministicReplay|PerformanceRegression"
+```
+
+3. Collect a CPU profile around benchmark tests (Linux example):
+
+```bash
+perf record --call-graph dwarf ./build/tests/evo_sim_tests --gtest_filter=PerformanceRegression.*
+perf report
+```
+
+4. Iterate on hot paths (`simulation/systems.cpp`, `environment/world.cpp`) and compare average tick time budgets for 500/1000/5000 creatures.
+
+### Optimization toggles
+
+- `-DEVO_SIM_BUILD_TESTS=OFF` to skip test/benchmark binaries in local iteration loops.
+- `-DEVO_SIM_FETCH_DEPS=OFF` for offline builds with preinstalled dependencies.
+- Runtime simulation dt can be tuned through `sim::FixedTimestepRunner::fixed_dt` for profiling experiments while preserving deterministic stepping semantics.
