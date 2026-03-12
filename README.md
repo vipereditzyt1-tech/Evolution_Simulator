@@ -62,6 +62,13 @@ ctest --test-dir build --output-on-failure
 - `-DEVO_SIM_FETCH_DEPS=OFF` to disable FetchContent downloads.
 - `-DEVO_SIM_BUILD_TESTS=OFF` to skip test target generation.
 
+### Offline-friendly behavior
+
+- When `EVO_SIM_FETCH_DEPS=ON`, tests fetch GoogleTest via FetchContent.
+- When `EVO_SIM_FETCH_DEPS=OFF`, the build tries to use a preinstalled/system `GTest` package.
+- If GoogleTest is unavailable and fetching is disabled, CMake emits a warning and skips creating
+  `evo_sim_tests` instead of failing configuration.
+
 
 ## Performance foundations
 
