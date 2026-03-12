@@ -1,5 +1,7 @@
 add_library(evo_sim_core
   core.cpp
+  ../simulation/elements.cpp
+  ../simulation/systems.cpp
 )
 
 add_library(evo::core ALIAS evo_sim_core)
@@ -7,6 +9,7 @@ add_library(evo::core ALIAS evo_sim_core)
 target_include_directories(evo_sim_core
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}
 )
 
 target_compile_features(evo_sim_core PUBLIC cxx_std_20)
