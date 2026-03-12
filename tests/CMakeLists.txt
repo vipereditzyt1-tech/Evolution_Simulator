@@ -11,6 +11,7 @@ FetchContent_MakeAvailable(googletest)
 add_executable(evo_sim_tests
   test_core.cpp
   test_simulation.cpp
+  test_ui_data.cpp
 )
 
 target_link_libraries(evo_sim_tests

@@ -1,5 +1,6 @@
 add_executable(evo_sim_app
   main.cpp
+  app.cpp
 )
 
 target_link_libraries(evo_sim_app
