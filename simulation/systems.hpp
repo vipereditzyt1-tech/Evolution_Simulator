@@ -5,11 +5,13 @@
 #include <vector>
 
 #include "creatures/creature.hpp"
+#include "environment/world.hpp"
 
 namespace evo::sim {
 
 struct SimulationEnvironment {
   std::vector<InventoryItem> recycled_materials;
+  EnvironmentWorld world;
 };
 
 struct DeterministicIds {

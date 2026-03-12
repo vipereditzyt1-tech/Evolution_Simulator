@@ -107,7 +107,14 @@ void run_tick(std::vector<Creature>& creatures, SimulationEnvironment& environme
     return lhs.id < rhs.id;
   });
 
+  environment.world.tick(context.tick_index, creatures, environment.recycled_materials);
+
   for (auto& creature : creatures) {
+    const auto sensor = environment.world.query_environment(creature.position, 8);
+    creature.sensor_state.temperature_gradient = sensor.temperature_gradient;
+    creature.sensor_state.pressure_gradient = sensor.pressure_gradient;
+    creature.sensor_state.local_rainfall_density = sensor.local_rainfall_density;
+    creature.sensor_state.local_material_density = sensor.local_material_density;
     creature.age_ticks += 1;
     auto ordered = creature.sorted_blocks();
     for (Block* block : ordered) {
