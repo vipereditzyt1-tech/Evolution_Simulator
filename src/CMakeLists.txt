@@ -10,6 +10,8 @@ target_link_libraries(evo_sim_app
 
 if(TARGET glfw)
   target_link_libraries(evo_sim_app PRIVATE glfw)
+elseif(TARGET glfw::glfw)
+  target_link_libraries(evo_sim_app PRIVATE glfw::glfw)
 endif()
 
 if(TARGET glad)
@@ -20,4 +22,6 @@ endif()
 
 if(TARGET imgui)
   target_link_libraries(evo_sim_app PRIVATE imgui)
+elseif(TARGET imgui::imgui)
+  target_link_libraries(evo_sim_app PRIVATE imgui::imgui)
 endif()
