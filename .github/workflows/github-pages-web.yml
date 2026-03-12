@@ -1,0 +1,56 @@
+name: Deploy Web Preview to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
+
+      - name: Configure (Web)
+        run: emcmake cmake -S . -B build-web -G Ninja -DEVO_SIM_BUILD_TESTS=OFF -DEVO_SIM_FETCH_DEPS=OFF
+
+      - name: Build (Web)
+        run: cmake --build build-web --target evo_sim_web -j
+
+      - name: Assemble site
+        run: |
+          mkdir -p site
+          cp web/index.html site/index.html
+          cp build-web/src/evo_sim_web.js site/evo_sim_web.js
+          cp build-web/src/evo_sim_web.wasm site/evo_sim_web.wasm
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

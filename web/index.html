@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Evolution Simulator (Web)</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 2rem; background: #0f172a; color: #e2e8f0; }
+      button { margin-right: .5rem; padding: .6rem 1rem; border-radius: 8px; border: 0; cursor: pointer; }
+      #log { white-space: pre-wrap; background: #111827; padding: 1rem; border-radius: 10px; min-height: 160px; }
+      .muted { color: #94a3b8; }
+    </style>
+  </head>
+  <body>
+    <h1>Evolution Simulator (Browser Preview)</h1>
+    <p class="muted">This runs the simulator core compiled to WebAssembly via Emscripten.</p>
+
+    <div>
+      <button id="load">Load WASM module</button>
+      <button id="step" disabled>Run 3 frames</button>
+    </div>
+
+    <h3>Output</h3>
+    <div id="log"></div>
+
+    <script type="module">
+      const logEl = document.getElementById('log');
+      const loadBtn = document.getElementById('load');
+      const stepBtn = document.getElementById('step');
+      let mod = null;
+
+      const log = (msg) => {
+        logEl.textContent += `${msg}\n`;
+      };
+
+      loadBtn.addEventListener('click', async () => {
+        if (mod) {
+          log('Module already loaded.');
+          return;
+        }
+
+        const factory = (await import('./evo_sim_web.js')).default;
+        mod = await factory({
+          print: (text) => log(text),
+          printErr: (text) => log(`[err] ${text}`),
+        });
+
+        const versionPtr = mod._evo_version();
+        const version = mod.UTF8ToString(versionPtr);
+        log(`Loaded: ${version}`);
+        stepBtn.disabled = false;
+      });
+
+      stepBtn.addEventListener('click', () => {
+        if (!mod) {
+          log('Module not loaded yet.');
+          return;
+        }
+
+        mod._evo_run_frames(3);
+      });
+    </script>
+  </body>
+</html>

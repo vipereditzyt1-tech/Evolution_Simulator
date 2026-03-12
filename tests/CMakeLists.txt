@@ -1,12 +1,37 @@
-include(FetchContent)
+set(EVO_SIM_TEST_LIB "")
 
-FetchContent_Declare(
-  googletest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG v1.15.2
-)
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
+if(EVO_SIM_FETCH_DEPS)
+  include(FetchContent)
+  FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.15.2
+  )
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+endif()
+
+if(TARGET GTest::gtest_main)
+  set(EVO_SIM_TEST_LIB GTest::gtest_main)
+elseif(TARGET GTest::gtest)
+  set(EVO_SIM_TEST_LIB GTest::gtest)
+else()
+  find_package(GTest QUIET CONFIG)
+
+  if(TARGET GTest::gtest_main)
+    set(EVO_SIM_TEST_LIB GTest::gtest_main)
+  elseif(TARGET GTest::gtest)
+    set(EVO_SIM_TEST_LIB GTest::gtest)
+  endif()
+endif()
+
+if(EVO_SIM_TEST_LIB STREQUAL "")
+  message(WARNING
+    "GoogleTest is unavailable (and EVO_SIM_FETCH_DEPS=${EVO_SIM_FETCH_DEPS}). "
+    "Skipping evo_sim_tests target."
+  )
+  return()
+endif()
 
 add_executable(evo_sim_tests
   test_core.cpp
@@ -21,7 +46,7 @@ add_executable(evo_sim_tests
 target_link_libraries(evo_sim_tests
   PRIVATE
     evo::core
-    GTest::gtest_main
+    ${EVO_SIM_TEST_LIB}
 )
 
 include(GoogleTest)
