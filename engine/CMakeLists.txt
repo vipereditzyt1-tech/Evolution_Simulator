@@ -2,6 +2,7 @@ add_library(evo_sim_core
   core.cpp
   ../simulation/elements.cpp
   ../simulation/systems.cpp
+  ../environment/world.cpp
 )
 
 add_library(evo::core ALIAS evo_sim_core)

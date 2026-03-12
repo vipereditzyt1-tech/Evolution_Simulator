@@ -32,6 +32,19 @@ struct CreatureHistory {
   std::vector<std::string> events;
 };
 
+struct SpatialPosition {
+  double x {0.0};
+  double y {0.0};
+  double z {0.0};
+};
+
+struct EnvironmentSensorState {
+  SpatialPosition temperature_gradient;
+  SpatialPosition pressure_gradient;
+  double local_rainfall_density {0.0};
+  double local_material_density {0.0};
+};
+
 struct Creature {
   CreatureId id {0};
   std::vector<Block> blocks;
@@ -42,6 +55,8 @@ struct Creature {
   double energy_pool {0.0};
   std::uint64_t age_ticks {0};
   CreatureHistory history;
+  SpatialPosition position;
+  EnvironmentSensorState sensor_state;
 
   [[nodiscard]] std::vector<Block*> sorted_blocks() {
     std::vector<Block*> ordered;

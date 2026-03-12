@@ -12,6 +12,7 @@ evo::sim::Creature make_creature(const std::uint64_t id, const std::uint64_t blo
   creature.id = id;
   creature.genome.id = id;
   creature.energy_pool = 10.0;
+  creature.position = evo::sim::SpatialPosition {static_cast<double>(id), 0.0, 0.0};
 
   evo::sim::Block block;
   block.id = block_id;
@@ -74,4 +75,43 @@ TEST(Simulation, ReproductionAssignsDeterministicIds) {
   EXPECT_EQ(clone.genome.genes[0].id, 300);
   ASSERT_FALSE(clone.blocks.empty());
   EXPECT_EQ(clone.blocks[0].id, 400);
+}
+
+TEST(Simulation, EnvironmentWorldIsDeterministicForSeedAndSupportsSensors) {
+  evo::sim::EnvironmentWorld world_a(99);
+  evo::sim::EnvironmentWorld world_b(99);
+
+  std::vector<evo::sim::Creature> creatures;
+  creatures.push_back(make_creature(1, 10, 8));
+  creatures.push_back(make_creature(2, 20, 8));
+
+  std::vector<evo::sim::InventoryItem> recycled_a;
+  std::vector<evo::sim::InventoryItem> recycled_b;
+
+  for (int t = 0; t < 5; ++t) {
+    world_a.tick(static_cast<std::uint64_t>(t), creatures, recycled_a);
+    world_b.tick(static_cast<std::uint64_t>(t), creatures, recycled_b);
+  }
+
+  const auto sample_a = world_a.query_environment(evo::sim::SpatialPosition {1.0, 0.0, 0.0}, 8, 1);
+  const auto sample_b = world_b.query_environment(evo::sim::SpatialPosition {1.0, 0.0, 0.0}, 8, 1);
+
+  EXPECT_NEAR(sample_a.local_rainfall_density, sample_b.local_rainfall_density, 1e-9);
+  EXPECT_NEAR(sample_a.local_material_density, sample_b.local_material_density, 1e-9);
+  EXPECT_GT(world_a.loaded_chunk_count(), 0U);
+}
+
+TEST(Simulation, TickUpdatesCreatureSensorStateFromEnvironment) {
+  evo::sim::SimulationEnvironment env;
+  env.world = evo::sim::EnvironmentWorld(77);
+
+  std::vector<evo::sim::Creature> creatures;
+  creatures.push_back(make_creature(1, 1, 8));
+
+  evo::sim::TickContext ctx {.tick_index = 10, .deterministic_seed = 77};
+  evo::sim::run_tick(creatures, env, ctx);
+
+  ASSERT_EQ(creatures.size(), 1);
+  EXPECT_GE(creatures[0].sensor_state.local_rainfall_density, 0.0);
+  EXPECT_GE(creatures[0].sensor_state.local_material_density, 0.0);
 }
