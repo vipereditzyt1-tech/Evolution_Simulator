@@ -22,7 +22,12 @@ Starter C++ project structure for a cross-platform evolution simulator.
   - **macOS:** Xcode 14+ (AppleClang)
 - Git (required when `EVO_SIM_FETCH_DEPS=ON` to pull dependencies)
 
-Dependencies are configured via **CMake FetchContent**:
+Dependencies are resolved with a **system-first strategy**:
+
+1. CMake first tries preinstalled/system packages (`find_package`).
+2. If a dependency is still missing and `EVO_SIM_FETCH_DEPS=ON`, CMake falls back to **FetchContent**.
+
+Dependencies include:
 
 - Rendering stack: GLFW + GLAD
 - Physics: Bullet
@@ -64,8 +69,9 @@ ctest --test-dir build --output-on-failure
 
 ### Offline-friendly behavior
 
-- When `EVO_SIM_FETCH_DEPS=ON`, tests fetch GoogleTest via FetchContent.
-- When `EVO_SIM_FETCH_DEPS=OFF`, the build tries to use a preinstalled/system `GTest` package.
+- Core dependencies are system-first (`find_package`) and only fetched when missing and `EVO_SIM_FETCH_DEPS=ON`.
+- When `EVO_SIM_FETCH_DEPS=ON`, tests fetch GoogleTest via FetchContent if no system package is found.
+- When `EVO_SIM_FETCH_DEPS=OFF`, tests use only preinstalled/system `GTest`.
 - If GoogleTest is unavailable and fetching is disabled, CMake emits a warning and skips creating
   `evo_sim_tests` instead of failing configuration.
 
