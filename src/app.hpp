@@ -16,10 +16,12 @@ public:
   void run(std::uint64_t frames);
 
 private:
-  void step_simulation();
+  void step_simulation(double frame_dt);
   void sync_ui();
 
   std::uint64_t tick_ {0};
+  sim::FixedTimestepRunner timestep_ {};
+  double interpolation_alpha_ {0.0};
   sim::SimulationEnvironment environment_;
   std::vector<sim::Creature> creatures_;
   engine::OrbitCamera camera_;

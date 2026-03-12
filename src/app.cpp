@@ -30,7 +30,8 @@ App::App() : renderer_(sim::ElementRegistry()) {
 
 void App::run(const std::uint64_t frames) {
   for (std::uint64_t frame = 0; frame < frames; ++frame) {
-    step_simulation();
+    constexpr double frame_dt = 1.0 / 30.0;
+    step_simulation(frame_dt);
     sync_ui();
 
     if (frame == 0) {
@@ -43,18 +44,21 @@ void App::run(const std::uint64_t frames) {
     const auto rendered = renderer_.build_frame(creatures_, camera_);
     std::cout << "frame=" << frame << " blocks=" << rendered.blocks.size() << " selected="
               << (rendered.highlighted_creature.has_value() ? std::to_string(*rendered.highlighted_creature) : std::string("none"))
-              << '\n';
+              << " alpha=" << interpolation_alpha_ << '\n';
   }
 }
 
-void App::step_simulation() {
+void App::step_simulation(const double frame_dt) {
   if (ui_state_.controls.paused) {
     return;
   }
 
-  sim::TickContext ctx {.tick_index = tick_, .deterministic_seed = 42};
-  sim::run_tick(creatures_, environment_, ctx);
-  ++tick_;
+  timestep_.consume(frame_dt, [&](const double fixed_dt) {
+    sim::TickContext ctx {.tick_index = tick_, .deterministic_seed = 42, .dt_seconds = fixed_dt};
+    sim::run_tick(creatures_, environment_, ctx);
+    ++tick_;
+  });
+  interpolation_alpha_ = timestep_.interpolation_alpha();
 }
 
 void App::sync_ui() {

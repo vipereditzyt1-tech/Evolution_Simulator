@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <mutex>
 
 namespace evo::sim {
 namespace {
@@ -107,15 +108,18 @@ void run_tick(std::vector<Creature>& creatures, SimulationEnvironment& environme
     return lhs.id < rhs.id;
   });
 
-  environment.world.tick(context.tick_index, creatures, environment.recycled_materials);
+  environment.world.tick(context.tick_index, creatures, environment.recycled_materials, &environment.jobs);
 
-  for (auto& creature : creatures) {
+  std::vector<std::vector<InventoryItem>> local_recycled(creatures.size());
+  environment.jobs.parallel_for(0, creatures.size(), [&](const std::size_t i) {
+    auto& creature = creatures[i];
     const auto sensor = environment.world.query_environment(creature.position, 8);
     creature.sensor_state.temperature_gradient = sensor.temperature_gradient;
     creature.sensor_state.pressure_gradient = sensor.pressure_gradient;
     creature.sensor_state.local_rainfall_density = sensor.local_rainfall_density;
     creature.sensor_state.local_material_density = sensor.local_material_density;
     creature.age_ticks += 1;
+
     auto ordered = creature.sorted_blocks();
     for (Block* block : ordered) {
       const double upkeep = block->maintenance_energy_cost + block->action_energy_cost;
@@ -123,14 +127,14 @@ void run_tick(std::vector<Creature>& creatures, SimulationEnvironment& environme
         creature.energy_pool -= upkeep;
         block->damage_state.wear = std::max(0.0, block->damage_state.wear - block->repair_energy_cost * 0.1);
       } else {
-        block->damage_state.wear += (upkeep - creature.energy_pool) + static_cast<double>(context.tick_index % 3);
+        block->damage_state.wear += (upkeep - creature.energy_pool) + static_cast<double>(context.tick_index % 3) + context.dt_seconds;
         creature.energy_pool = 0.0;
       }
 
       if (block->damage_state.wear >= block->durability) {
         block->damage_state.broken = true;
         for (const auto& component : block->composition.components) {
-          environment.recycled_materials.push_back(InventoryItem {component.element_id, component.weight * block->mass});
+          local_recycled[i].push_back(InventoryItem {component.element_id, component.weight * block->mass});
         }
       }
     }
@@ -138,6 +142,10 @@ void run_tick(std::vector<Creature>& creatures, SimulationEnvironment& environme
     creature.blocks.erase(
       std::remove_if(creature.blocks.begin(), creature.blocks.end(), [](const Block& b) { return b.damage_state.broken; }),
       creature.blocks.end());
+  });
+
+  for (const auto& local : local_recycled) {
+    environment.recycled_materials.insert(environment.recycled_materials.end(), local.begin(), local.end());
   }
 }
 

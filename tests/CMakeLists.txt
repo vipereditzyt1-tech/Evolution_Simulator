@@ -12,6 +12,10 @@ add_executable(evo_sim_tests
   test_core.cpp
   test_simulation.cpp
   test_ui_data.cpp
+  test_unit_sim_math.cpp
+  test_integration_ecosystem.cpp
+  test_deterministic_replay.cpp
+  test_performance_regression.cpp
 )
 
 target_link_libraries(evo_sim_tests

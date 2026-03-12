@@ -5,8 +5,10 @@
 #include <cstdint>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
+#include "simulation/job_system.hpp"
 #include "simulation/creatures/creature.hpp"
 
 namespace evo::sim {
@@ -32,12 +34,14 @@ public:
   explicit EnvironmentWorld(std::uint32_t seed = 1);
 
   void tick(std::uint64_t tick_index, const std::vector<Creature>& creatures,
-            std::vector<InventoryItem>& recycled_materials);
+            std::vector<InventoryItem>& recycled_materials, ThreadPool* jobs = nullptr);
 
   [[nodiscard]] EnvironmentSensorSample query_environment(const SpatialPosition& world_position, ElementId element,
                                                           int radius = 2) const;
 
   [[nodiscard]] std::size_t loaded_chunk_count() const;
+  [[nodiscard]] std::vector<CreatureId> query_neighbors(const SpatialPosition& world_position, double radius) const;
+  [[nodiscard]] std::vector<std::pair<CreatureId, CreatureId>> broad_phase_pairs(double radius) const;
 
 private:
   struct ChunkCoord {
@@ -72,6 +76,7 @@ private:
   };
 
   struct SpatialGrid {
+    std::unordered_map<CreatureId, SpatialPosition> positions;
     std::unordered_map<ChunkCoord, std::vector<CreatureId>, ChunkCoordHash> buckets;
 
     void rebuild(const std::vector<Creature>& creatures);
