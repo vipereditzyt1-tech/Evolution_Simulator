@@ -1,8 +1,11 @@
 add_library(evo_sim_core
   core.cpp
+  render_loop.cpp
   ../simulation/elements.cpp
   ../simulation/systems.cpp
   ../environment/world.cpp
+  ../ui/panels.cpp
+  ../data/serialization.cpp
 )
 
 add_library(evo::core ALIAS evo_sim_core)
